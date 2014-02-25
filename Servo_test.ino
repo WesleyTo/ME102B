@@ -10,12 +10,13 @@ short upSwitch = 1; // Upshift switch input pin
 short downSwitch = 2; // Downshift switch input pin
 short ledPin = 3; // the LED signal pin
 int positions[] = {10, 26, 42, 58, 74, 90, 106, 122, 138, 154, 170}; // position of the servo in degrees of rotation
+//int positions[] = {0, 18, 36, 54, 72, 90, 108, 126, 144, 162, 180}; // erratic behavior ar 0 and 180 degrees
 short minSize = 0;  // minimum index of the positions array
 short maxSize = 10; // maximum index of the positions array
 short pos = 0;      // variable to store the servo positions index
 int preMotor = 75; // delays the LED by this value to sync motor movement and LED
 int motorDelay = 350; // delay in between motor movements
-boolean manual = false; // boolean to store manual control or not
+boolean manual = true; // boolean to store manual control or not
 byte curr[16];
 unsigned int rpm[10];
 byte rpmIndex = 0;
