@@ -4,16 +4,16 @@ U8GLIB_ST7920_128X64_4X u8g(13, 11, 9, 8);// SPI Com: SCK = en = 13, MOSI = rw =
 int rpm = 0;
 const float pi = 3.14;
 char output[3] = "00";
+byte centerCircle[] = {64, 72};
+float increment = 1.2547;
+int radius = 71;
+float dotVector[] = {0-centerCircle[0], 42-centerCircle[1]};
 
 void draw(void) {
   // graphic commands to redraw the complete screen should be placed here  
   output[0] = 48+(rpm/10);
   output[1] = 48+(rpm%10);
   // 0 = [0,42] 100 = [128,42]
-  byte centerCircle[] = {64, 72};
-  float increment = 1.2547;
-  int radius = 71;
-  float dotVector[] = {0-centerCircle[0], 42-centerCircle[1]};
   float theta = ((rpm*increment)*pi)/180; 
   double cs = cos(theta);
   double ss = sin(theta);
