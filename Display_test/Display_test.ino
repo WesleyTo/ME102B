@@ -54,7 +54,7 @@ void draw(void) {
     float theta = ((rpm1*increment)*pi)/180; 
     double cs = cos(theta);
     double ss = sin(theta);
-    float rotVector[] = {dotVector[0]*cs - dotVector[1]*ss + centerCircle[0], dotVector[0]*ss + dotVector[1]*cs + centerCircle[1]+3};
+    float rotVector[] = {dotVector[0]*cs - dotVector[1]*ss + centerCircle[0], dotVector[0]*ss + dotVector[1]*cs + centerCircle[1]+1};
     //u8g.drawFilledEllipse(rotVector[0], rotVector[1], 3, 3);//draw a dot that follows the RPM
     u8g.drawLine(63,63,rotVector[0], rotVector[1]);//draw a line that follows the RPM
     u8g.drawCircle(centerCircle[0],centerCircle[1],radius-1);
@@ -70,10 +70,10 @@ void draw(void) {
     //===========    
     if (alert) {
       if (up_shift) {     
-        u8g.drawTriangle(63, 9, 53, 27, 73, 27);
+        u8g.drawTriangle(64, 9, 54, 27, 74, 27);
       }
       else{
-        u8g.drawTriangle(63, 27, 53, 9, 73, 9);
+        u8g.drawTriangle(64, 27, 54, 9, 74, 9);
       }
      alert--;
     }
@@ -151,20 +151,21 @@ void setup(void) {
  }
 
 void loop(void) {
-  if (millis() - lastDraw > drawDelay) {
+   if (millis() - lastDraw > drawDelay) {
      u8g.firstPage();
      do {
        draw();
      } while(u8g.nextPage());
      lastDraw = millis();
-  }
-  if (!stopped && (millis() - lastUpdate > stopDelay)) {
-     Serial.println("Stopped!");
+   }
+   if (!stopped && (millis() - lastUpdate > stopDelay)) {
      stopped = true;
+     reverse = false;
      rpm1 = 0;
    }
    if (stopped) {
     gear = 0; 
+    up_shift = false;
     changeGear();
     Serial.println("Stopped");
    }
