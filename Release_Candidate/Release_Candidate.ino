@@ -24,25 +24,26 @@
  const byte frontGear[] = {minAngle,minAngle,minAngle,minAngle,minAngle,maxAngle,maxAngle,maxAngle,maxAngle,maxAngle};
  const byte rearGear[] = {minAngle,minAngle+stepAngle,minAngle+(2*stepAngle),maxAngle-stepAngle,maxAngle,minAngle,minAngle+stepAngle,minAngle+(2*stepAngle),maxAngle-stepAngle,maxAngle};
  
- static unsigned int hall1 = 0;
- static unsigned int hall2 = 0;
+ static unsigned long hall1 = 0;
+ static unsigned long hall2 = 0;
  static byte currentSensor = 1;
  static byte lastSensor = 0;
  static byte readRpm = 0;
- static unsigned char rpm1 = 0;
- static unsigned char rpm2 = 1;
- static unsigned char rpm3 = 2;
- static unsigned char rpm4 = 3;
+ static byte rpm1 = 0;
+ static byte rpm2 = 1;
+ static byte rpm3 = 2;
+ static byte rpm4 = 3;
  static boolean reverse = false;
  static boolean stopped = false;
  static boolean up_shift = true;
  static boolean coast = false;
+ static boolean displayZero = false;
  static byte alert = 0;
  const byte targetRpm = 50;
  const byte lowerLimit = targetRpm-10;
  const byte upperLimit = targetRpm+10;
- static unsigned int lastShift = 0;
- static unsigned int lastUpdate = 0;
+ static unsigned long lastShift = 0;
+ static unsigned long lastUpdate = 0;
  static unsigned int lastDraw = 0;
  const unsigned int drawDelay = 400;
  const unsigned int shiftDelay = 1000; //milliseconds to wait after shifting to begin reading RPM again
@@ -113,7 +114,7 @@ void draw(void) {
       u8g.setFont(u8g_font_helvR08);
       u8g.drawStr(40, 55, "REVERSE");
     }
-    else if (rpm1 > 99 && !reverse) {
+    else if (rpm1 > 99) {
       u8g.drawBox(41, 38, 51, 26);
       u8g.setColorIndex(0);
       output3[0] = 48+(rpm1/100);
@@ -121,7 +122,7 @@ void draw(void) {
       output3[2] = 48+(rpm1%10);
       u8g.drawStr(39, 63, output3);
     }
-    else if (rpm1 < 100 && !reverse) {
+    else if (rpm1 < 100) {
       u8g.drawBox(46, 38, 36, 26);
       u8g.setColorIndex(0);
       output2[0] = 48+rpm1/10;
@@ -145,6 +146,7 @@ void setup(void) {
 }
 
 unsigned char getRpm(){
+  //measures half revolutions, thus, 30000ms = 30s
   return (char)(30000/abs(hall1-hall2)); 
 }
  
@@ -166,7 +168,7 @@ void loop(void) {
      } while(u8g.nextPage());
      lastDraw = millis();
    }
-   if (!stopped && coast && (millis() - lastUpdate > stopDelay)) {
+   if (!stopped && (millis() - lastUpdate > stopDelay)) {
      stopped = true;
      coast = false;
      reverse = false;
@@ -178,6 +180,7 @@ void loop(void) {
      }
    }
    else if (!stopped && !coast && (millis() - lastUpdate > coastDelay)) {
+     stopped = false;
      coast = true;
      reverse = false;
      rpm1 = 0;
@@ -208,6 +211,8 @@ void changeGear() {
 }
 
 void hallHigh1() {
+  hall1 = millis();
+  lastUpdate = hall1;
   stopped = false;
   coast = false;
   currentSensor = 1;
@@ -215,13 +220,13 @@ void hallHigh1() {
     reverse = !reverse;
   }
   readRpm++;
-  hall1 = millis();
-  lastUpdate = hall1;
   lastSensor = 1;
   storeRpm();
 }
  
 void hallHigh2() {
+  hall2 = millis();
+  lastUpdate = hall2;
   stopped = false;  
   coast = false;
   currentSensor = 2;
@@ -229,8 +234,6 @@ void hallHigh2() {
     reverse = !reverse;
   }
   readRpm++;
-  hall2 = millis();
-  lastUpdate = hall2;
   lastSensor = 2;
   storeRpm();
 }
