@@ -16,7 +16,7 @@
  Servo frontServo;
  Servo rearServo;
  const short frontServoPin = 10; // Servo signal pin
- const short rearServoPin = 5; // Servo signal pin
+ const short rearServoPin = 11; // Servo signal pin
  static byte gear = 0;
  const byte minAngle = 14;
  const byte maxAngle = 166;
@@ -36,6 +36,7 @@
  static boolean reverse = false;
  static boolean stopped = false;
  static boolean up_shift = true;
+ static boolean coast = false;
  static byte alert = 0;
  const byte targetRpm = 50;
  const byte lowerLimit = targetRpm-10;
@@ -45,7 +46,8 @@
  static unsigned int lastDraw = 0;
  const unsigned int drawDelay = 400;
  const unsigned int shiftDelay = 1000; //milliseconds to wait after shifting to begin reading RPM again
- const unsigned int stopDelay = 4000; //milliseconds to wait before assuming rider is stopped
+ const unsigned int coastDelay = 5000;
+ const unsigned int stopDelay = 15000; //milliseconds to wait before assuming rider is stopped
 
 void draw(void) {
   if (millis() - lastDraw > drawDelay) {
@@ -99,6 +101,12 @@ void draw(void) {
       u8g.setFont(u8g_font_helvR08);
       u8g.drawStr(40, 55, "STOPPED");
     }
+    else if (coast) {
+      u8g.drawBox(40, 37, 49, 27);
+      u8g.setColorIndex(0);
+      u8g.setFont(u8g_font_helvR08);
+      u8g.drawStr(47, 55, "COAST");
+    }
     else if (reverse) {
       u8g.drawBox(40, 37, 49, 27);
       u8g.setColorIndex(0);
@@ -124,33 +132,31 @@ void draw(void) {
 }
 
 void setup(void) {
-   Serial.begin(9600);
-   u8g.begin();
-   u8g.setColorIndex(1); // pixel on draw
-   frontServo.attach(frontServoPin);
-   rearServo.attach(rearServoPin);
-   frontServo.write(frontGear[gear]);
-   rearServo.write(rearGear[gear]);
-   attachInterrupt(0, hallHigh1, RISING);
-   attachInterrupt(1, hallHigh2, RISING);
-   digitalWrite(2, HIGH);
-   digitalWrite(3, HIGH);
-   rpm1 = 0;
+  u8g.setColorIndex(1); // pixel on draw
+  frontServo.attach(frontServoPin);
+  rearServo.attach(rearServoPin);
+  frontServo.write(frontGear[gear]);
+  rearServo.write(rearGear[gear]);
+  attachInterrupt(0, hallHigh1, RISING);
+  attachInterrupt(1, hallHigh2, RISING);
+  digitalWrite(2, HIGH);
+  digitalWrite(3, HIGH);
+  rpm1 = 0;
 }
 
- unsigned char getRpm(){
-    return (char)(30000/abs(hall1-hall2)); 
- }
+unsigned char getRpm(){
+  return (char)(30000/abs(hall1-hall2)); 
+}
  
- void storeRpm() {
-   unsigned char r = getRpm();
-   if (!reverse && r != 0 && readRpm >= 2) {
-     rpm4 = rpm3;
-     rpm3 = rpm2;
-     rpm2 = rpm1;
-     rpm1 = r;
-   }
- }
+void storeRpm() {
+  unsigned char r = getRpm();
+  if (!reverse && r != 0 && readRpm >= 2) {
+    rpm4 = rpm3;
+    rpm3 = rpm2;
+    rpm2 = rpm1;
+    rpm1 = r;
+  }
+}
 
 void loop(void) {
    if (millis() - lastDraw > drawDelay) {
@@ -160,59 +166,71 @@ void loop(void) {
      } while(u8g.nextPage());
      lastDraw = millis();
    }
-   if (!stopped && (millis() - lastUpdate > stopDelay)) {
+   if (!stopped && coast && (millis() - lastUpdate > stopDelay)) {
      stopped = true;
+     coast = false;
      reverse = false;
      rpm1 = 0;
-     gear = 0; 
+     if (gear != 0) {
+       gear = 0; 
+       up_shift = false;
+       changeGear();
+     }
+   }
+   else if (!stopped && !coast && (millis() - lastUpdate > coastDelay)) {
+     coast = true;
+     reverse = false;
+     rpm1 = 0;
+     if (gear != 0) {
+       gear--; 
+       up_shift = false;
+       changeGear();
+     }
+   }
+   else if (!reverse && readRpm >= 10 && rpm1 < lowerLimit && rpm2 < lowerLimit && rpm3 < lowerLimit && gear != 0){
+     gear--;
      up_shift = false;
      changeGear();
    }
-   else if (!reverse && readRpm >= 10 && rpm1 < lowerLimit && rpm2 < lowerLimit && rpm3 < lowerLimit && gear != 0){
-    gear--;
-    up_shift = false;
-    changeGear();
-   }
    else if (!reverse && readRpm >= 10 && rpm1 > upperLimit && rpm2 > upperLimit && rpm3 > upperLimit && rpm4 > upperLimit && gear != 9){
-    gear++;
-    up_shift = true;
-    changeGear();
+     gear++;
+     up_shift = true;
+     changeGear();
   }
 }
 
- void changeGear() {
+void changeGear() {
   alert = 4;
   readRpm = 0;
   lastShift = millis();
   frontServo.write(frontGear[gear]);
   rearServo.write(rearGear[gear]); 
- }
+}
 
- void hallHigh1()
- {
-    currentSensor = 1;
-    stopped = false;
-    if (currentSensor == lastSensor) {
-      reverse = !reverse;
-    }
-    readRpm++;
-    hall1 = millis();
-    lastUpdate = hall1;
-    lastSensor = 1;
-    storeRpm();
- }
+void hallHigh1() {
+  stopped = false;
+  coast = false;
+  currentSensor = 1;
+  if (currentSensor == lastSensor) {
+    reverse = !reverse;
+  }
+  readRpm++;
+  hall1 = millis();
+  lastUpdate = hall1;
+  lastSensor = 1;
+  storeRpm();
+}
  
-  void hallHigh2()
- {  
-   currentSensor = 2;
-   stopped = false;
-   if (currentSensor == lastSensor) {
-     reverse = !reverse;
-   }
-   readRpm++;
-   hall2 = millis();
-   lastUpdate = hall2;
-   lastSensor = 2;
-   storeRpm();
- }
-
+void hallHigh2() {
+  stopped = false;  
+  coast = false;
+  currentSensor = 2;
+  if (currentSensor == lastSensor) {
+    reverse = !reverse;
+  }
+  readRpm++;
+  hall2 = millis();
+  lastUpdate = hall2;
+  lastSensor = 2;
+  storeRpm();
+}
