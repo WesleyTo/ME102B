@@ -1,49 +1,51 @@
 #include "U8glib.h"
 #include <Servo.h>
 
-U8GLIB_ST7920_128X64_4X u8g(9,8,7,6);
-const float pi = 3.14;
-char output3[4] = "000";
-char output2[3] = "00";
-char gearOutput1[2] = "0";
-char gearOutput2[2] = "0";
-byte centerCircle[] = {64, 72};
-byte maxRPMtoDisplay = 120;
-float increment = 125.47/maxRPMtoDisplay;
-int radius = 71;
-float dotVector[] = {0-centerCircle[0], 42-centerCircle[1]};
+ U8GLIB_ST7920_128X64_4X u8g(9,8,7,6);
+ const float pi = 3.14;
+ static char output3[4] = "000";
+ static char output2[3] = "00";
+ static char gearOutput1[2] = "0";
+ static char gearOutput2[2] = "0";
+ const byte centerCircle[] = {64, 72};
+ const byte maxRPMtoDisplay = 120;
+ const float increment = 125.47/maxRPMtoDisplay;
+ const int radius = 71;
+ const float dotVector[] = {0-centerCircle[0], 42-centerCircle[1]};
 
  Servo frontServo;
  Servo rearServo;
- short frontServoPin = 10; // Servo signal pin
- short rearServoPin = 5; // Servo signal pin
- byte gear = 0;
- byte frontGear[] = {12,12,12,12,12,168,168,168,168,168};
- byte rearGear[] = {12,51,90,129,168,12,51,90,129,168};
+ const short frontServoPin = 10; // Servo signal pin
+ const short rearServoPin = 5; // Servo signal pin
+ static byte gear = 0;
+ const byte minAngle = 14;
+ const byte maxAngle = 166;
+ const byte stepAngle = (maxAngle-minAngle)/4;
+ const byte frontGear[] = {minAngle,minAngle,minAngle,minAngle,minAngle,maxAngle,maxAngle,maxAngle,maxAngle,maxAngle};
+ const byte rearGear[] = {minAngle,minAngle+stepAngle,minAngle+(2*stepAngle),maxAngle-stepAngle,maxAngle,minAngle,minAngle+stepAngle,minAngle+(2*stepAngle),maxAngle-stepAngle,maxAngle};
  
- unsigned int hall1 = 0;
- unsigned int hall2 = 0;
- byte currentSensor = 1;
- byte lastSensor = 0;
- byte readRpm = 0;
- unsigned char rpm1 = 0;
- unsigned char rpm2 = 1;
- unsigned char rpm3 = 2;
- unsigned char rpm4 = 3;
- boolean reverse = false;
- boolean stopped = false;
- boolean up_shift = true;
- byte alert = 0;
- String alertString = "";
- byte targetRpm = 40;
- byte lowerLimit = targetRpm-10;
- byte upperLimit = targetRpm+10;
- unsigned int lastShift = 0;
- unsigned int lastUpdate = 0;
- unsigned int lastDraw = 0;
- unsigned int drawDelay = 400;
- unsigned int shiftDelay = 1000; //milliseconds to wait after shifting to begin reading RPM again
- unsigned int stopDelay = 4000; //milliseconds to wait before assuming rider is stopped
+ static unsigned int hall1 = 0;
+ static unsigned int hall2 = 0;
+ static byte currentSensor = 1;
+ static byte lastSensor = 0;
+ static byte readRpm = 0;
+ static unsigned char rpm1 = 0;
+ static unsigned char rpm2 = 1;
+ static unsigned char rpm3 = 2;
+ static unsigned char rpm4 = 3;
+ static boolean reverse = false;
+ static boolean stopped = false;
+ static boolean up_shift = true;
+ static byte alert = 0;
+ const byte targetRpm = 50;
+ const byte lowerLimit = targetRpm-10;
+ const byte upperLimit = targetRpm+10;
+ static unsigned int lastShift = 0;
+ static unsigned int lastUpdate = 0;
+ static unsigned int lastDraw = 0;
+ const unsigned int drawDelay = 400;
+ const unsigned int shiftDelay = 1000; //milliseconds to wait after shifting to begin reading RPM again
+ const unsigned int stopDelay = 4000; //milliseconds to wait before assuming rider is stopped
 
 void draw(void) {
   if (millis() - lastDraw > drawDelay) {
@@ -162,12 +164,9 @@ void loop(void) {
      stopped = true;
      reverse = false;
      rpm1 = 0;
-   }
-   if (stopped) {
-    gear = 0; 
-    up_shift = false;
-    changeGear();
-    Serial.println("Stopped");
+     gear = 0; 
+     up_shift = false;
+     changeGear();
    }
    else if (!reverse && readRpm >= 10 && rpm1 < lowerLimit && rpm2 < lowerLimit && rpm3 < lowerLimit && gear != 0){
     gear--;
