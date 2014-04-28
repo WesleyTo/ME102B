@@ -1,7 +1,10 @@
 #include "U8glib.h"
 #include <Servo.h>
 
- U8GLIB_ST7920_128X64_4X u8g(9,8,7,6);
+ //=================
+ // Screen Variables
+ //=================
+ U8GLIB_ST7920_128X64_4X u8g(8,7,12,6);
  const float pi = 3.14;
  static char output3[4] = "000";
  static char output2[3] = "00";
@@ -12,40 +15,49 @@
  const float increment = 125.47/maxRPMtoDisplay;
  const int radius = 71;
  const float dotVector[] = {0-centerCircle[0], 42-centerCircle[1]};
-
- Servo frontServo;
- Servo rearServo;
- const short frontServoPin = 10; // Servo signal pin
- const short frontCompServoPin = 11; // Complementary servo signal pin
+ static boolean displayZero = false;
+ static byte alert = 0;
+ static unsigned int lastDraw = 0;
+ const unsigned int drawDelay = 400;
+ //=================
+ // Servo Variables
+ //=================
+ Servo frontServo; // front servo, 0 to 180
+ Servo frontComp; // front complementary servo, 180 to 0
+ Servo rearServo; // rear servo, 0 to 180
+ Servo rearComp; // rear complementary servo, 180 to 0
+ const short frontServoPin = 5; // Servo signal pin
+ const short frontCompPin = 9;  // Complementary servo signal pin
+ const short rearServoPin = 10; // Servo signal pin
+ const short rearCompPin = 11; // Complementary servo signal pin
  static byte gear = 0;
- const byte minAngle = 14;
- const byte maxAngle = 166;
- const byte stepAngle = (maxAngle-minAngle)/4;
- const byte frontGear[] = {minAngle,minAngle,minAngle,minAngle,minAngle,maxAngle,maxAngle,maxAngle,maxAngle,maxAngle};
- const byte rearGear[] = {minAngle,minAngle+stepAngle,minAngle+(2*stepAngle),maxAngle-stepAngle,maxAngle,minAngle,minAngle+stepAngle,minAngle+(2*stepAngle),maxAngle-stepAngle,maxAngle};
- 
+ const byte minAngle = 0;
+ const byte maxAngle = 180;
+ const byte numGears = 4;
+ const byte stepAngle = (maxAngle-minAngle)/(numGears-1);
+ const byte frontGear[] = {minAngle,minAngle,minAngle,minAngle,maxAngle,maxAngle,maxAngle,maxAngle};
+ const byte rearGear[] = {minAngle,minAngle+stepAngle,maxAngle-stepAngle,maxAngle,minAngle,minAngle+stepAngle,maxAngle-stepAngle,maxAngle};
+ //=================
+ // Hall/RPM Variables
+ //=================
  static unsigned long hall1 = 0;
  static unsigned long hall2 = 0;
  static byte currentSensor = 1;
  static byte lastSensor = 0;
  static byte readRpm = 0;
- static byte rpm1 = 0;
- static byte rpm2 = 1;
- static byte rpm3 = 2;
- static byte rpm4 = 3;
+ static unsigned int rpm1 = 0;
+ static unsigned int rpm2 = 1;
+ static unsigned int rpm3 = 2;
+ static unsigned int rpm4 = 3;
  static boolean reverse = false;
  static boolean stopped = false;
  static boolean up_shift = true;
  static boolean coast = false;
- static boolean displayZero = false;
- static byte alert = 0;
  const byte targetRpm = 50;
  const byte lowerLimit = targetRpm-10;
  const byte upperLimit = targetRpm+10;
  static unsigned long lastShift = 0;
  static unsigned long lastUpdate = 0;
- static unsigned int lastDraw = 0;
- const unsigned int drawDelay = 400;
  const unsigned int shiftDelay = 1000; //milliseconds to wait after shifting to begin reading RPM again
  const unsigned int coastDelay = 5000;
  const unsigned int stopDelay = 15000; //milliseconds to wait before assuming rider is stopped
@@ -135,9 +147,13 @@ void draw(void) {
 void setup(void) {
   u8g.setColorIndex(1); // pixel on draw
   frontServo.attach(frontServoPin);
-  rearServo.attach(frontCompServoPin);
+  rearServo.attach(rearServoPin);
+  frontComp.attach(frontCompPin);
+  rearComp.attach(rearCompPin);
   frontServo.write(frontGear[gear]);
+  frontComp.write(maxAngle - frontGear[gear]);
   rearServo.write(rearGear[gear]);
+  rearComp.write(maxAngle - frontGear[gear]);
   attachInterrupt(0, hallHigh1, RISING);
   attachInterrupt(1, hallHigh2, RISING);
   digitalWrite(2, HIGH);
@@ -145,13 +161,13 @@ void setup(void) {
   rpm1 = 0;
 }
 
-unsigned char getRpm(){
+unsigned int getRpm(){
   //measures half revolutions, thus, 30000ms = 30s
-  return (char)(30000/abs(hall1-hall2)); 
+  return (unsigned int)(30000/abs(hall1-hall2)); 
 }
  
 void storeRpm() {
-  unsigned char r = getRpm();
+  unsigned int r = getRpm();
   if (!reverse && r != 0 && readRpm >= 2) {
     rpm4 = rpm3;
     rpm3 = rpm2;
@@ -207,7 +223,9 @@ void changeGear() {
   readRpm = 0;
   lastShift = millis();
   frontServo.write(frontGear[gear]);
-  rearServo.write(rearGear[gear]); 
+  frontComp.write(maxAngle - frontGear[gear])
+  rearServo.write(rearGear[gear]);
+  rearComp.write(maxAngle - rearGear[gear]);
 }
 
 void hallHigh1() {
