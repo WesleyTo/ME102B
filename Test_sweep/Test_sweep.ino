@@ -2,6 +2,11 @@
 // by BARRAGAN <http://barraganstudio.com> 
 // This example code is in the public domain.
 
+/* 
+This is a modified version of BARRAGAN's Sweep code for the Arduino.
+It is written for use of 4 servos arranged in 2 mirrored pairs.
+This is suitable for testing the Automatic Bike Transmission servos.
+*/
 
 #include <Servo.h> 
  

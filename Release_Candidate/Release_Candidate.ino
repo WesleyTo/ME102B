@@ -1,24 +1,45 @@
+/*
+  Written and developed by 
+      Wesley To 
+  With help from
+      Rachit Nanda
+  For ME102B, Spring 2014, UC Berkeley
+  Under Professor Homayoon Kazerooni
+  
+  This software uses a modified version of u8glib that 
+  has been optimized for a 64x128 pixel ST7920 display.
+
+  This software is provided as-is, and is intended for 
+  educational, private, and/or non-profit use only. 
+  Commercial use is strictly prohibited.
+  
+  Private users and educators are free to make any 
+  changes or modifications to the software, and to 
+  redistribute it, on the condition that an 
+  acknowledgement is given to the original authors 
+  of the software.
+*/
+
 #include "U8glib.h"
 #include <Servo.h>
 
  //=================
- // Screen Variables
+ // Screen Variables, assumes a 64x128 screen
  //=================
  U8GLIB_ST7920_128X64_4X u8g(8,7,12,6);
- const float pi = 3.14;
- static char output3[4] = "000";
- static char output2[3] = "00";
- static char gearOutput1[2] = "0";
- static char gearOutput2[2] = "0";
+ const float pi = 3.1416;
+ char output3[4] = "000"; // 3 character RPM readout
+ char output2[3] = "00"; // 2 character RPM readout
+ char gearOutput1[2] = "0"; // front gear readout
+ char gearOutput2[2] = "0"; // rear gear readout
  const byte centerCircle[] = {64, 72};
  const byte maxRPMtoDisplay = 120;
  const float increment = 125.47/maxRPMtoDisplay;
- const int radius = 71;
+ const int radius = 71; // radius of the tachometer
  const float dotVector[] = {0-centerCircle[0], 42-centerCircle[1]};
- static boolean displayZero = false;
- static byte alert = 0;
- static unsigned int lastDraw = 0;
- const unsigned int drawDelay = 400;
+ byte alert = 0; // number of times to draw an alert
+ unsigned int lastDraw = 0; // stores the last screen update, in milliseconds
+ const unsigned int drawDelay = 400; // delay between screen updates
  //=================
  // Servo Variables
  //=================
@@ -30,36 +51,36 @@
  const short frontCompPin = 9;  // Complementary servo signal pin
  const short rearServoPin = 10; // Servo signal pin
  const short rearCompPin = 11; // Complementary servo signal pin
- static byte gear = 0;
- const byte minAngle = 0;
- const byte maxAngle = 180;
- const byte numGears = 4;
+ byte gear = 0; // gear number, 0 - 7 for 8 speed bike
+ const byte minAngle = 0; // minimum servo angle
+ const byte maxAngle = 180; // maximum servo angle
+ const byte numGears = 4; // number of rear gears. It is assumed that the front gear has 2 speeds.
  const byte stepAngle = (maxAngle-minAngle)/(numGears-1);
  const byte frontGear[] = {minAngle,minAngle,minAngle,minAngle,maxAngle,maxAngle,maxAngle,maxAngle};
  const byte rearGear[] = {minAngle,minAngle+stepAngle,maxAngle-stepAngle,maxAngle,minAngle,minAngle+stepAngle,maxAngle-stepAngle,maxAngle};
  //=================
  // Hall/RPM Variables
  //=================
- static unsigned long hall1 = 0;
- static unsigned long hall2 = 0;
- static byte currentSensor = 1;
- static byte lastSensor = 0;
- static byte readRpm = 0;
- static unsigned int rpm1 = 0;
- static unsigned int rpm2 = 1;
- static unsigned int rpm3 = 2;
- static unsigned int rpm4 = 3;
- static boolean reverse = false;
- static boolean stopped = false;
- static boolean up_shift = true;
- static boolean coast = false;
- const byte targetRpm = 50;
- const byte lowerLimit = targetRpm-10;
- const byte upperLimit = targetRpm+10;
- static unsigned long lastShift = 0;
- static unsigned long lastUpdate = 0;
+ unsigned long hall1 = 0; // stores the last reading for the first hall sensor in milliseconds
+ unsigned long hall2 = 0; // stores the last reading for the second hall sensor in milliseconds
+ byte currentSensor = 1; // stores which sensor was just read. Determines rever pedaling
+ byte lastSensor = 0; // stores which sensor was previously read. Determines rever pedaling
+ byte readRpm = 0; // number of RPM reads that have taken place. Some algorithms rely on having multiple RPM readings.
+ unsigned int rpm1 = 0; // stores the last RPM reading
+ unsigned int rpm2 = 1; // stores the previous RPM reading
+ unsigned int rpm3 = 2; // stores an RPM reading
+ unsigned int rpm4 = 3; // stores an RPM reading
+ boolean reverse = false; // boolean to determine if user is pedaling in reverse
+ boolean stopped = false; // boolean to determine if the user has stopped pedaling
+ boolean up_shift = true; // boolean to determine which direction a gear change was
+ boolean coast = false; // boolean to determine if a user is coasting
+ const byte targetRpm = 60; // ideal user cadence
+ const byte lowerLimit = targetRpm-10; // lower limit before down-shifting
+ const byte upperLimit = targetRpm+10; // upper limit before up-shifting
+ unsigned long lastShift = 0; // when the last gear change occurred, in milliseconds
+ unsigned long lastUpdate = 0; // stores the time of the last hall sensor reading, in milliseconds
  const unsigned int shiftDelay = 1000; //milliseconds to wait after shifting to begin reading RPM again
- const unsigned int coastDelay = 5000;
+ const unsigned int coastDelay = 5000; //milliseconds to wait before assuming rider is coasting
  const unsigned int stopDelay = 15000; //milliseconds to wait before assuming rider is stopped
 
 void draw(void) {
@@ -169,6 +190,7 @@ unsigned int getRpm(){
 void storeRpm() {
   unsigned int r = getRpm();
   if (!reverse && r != 0 && readRpm >= 2) {
+    // basic swap algorithm
     rpm4 = rpm3;
     rpm3 = rpm2;
     rpm2 = rpm1;
@@ -177,44 +199,49 @@ void storeRpm() {
 }
 
 void loop(void) {
-   if (millis() - lastDraw > drawDelay) {
-     u8g.firstPage();
-     do {
-       draw();
-     } while(u8g.nextPage());
-     lastDraw = millis();
-   }
-   if (!stopped && (millis() - lastUpdate > stopDelay)) {
-     stopped = true;
-     coast = false;
-     reverse = false;
-     rpm1 = 0;
-     if (gear != 0) {
-       gear = 0; 
-       up_shift = false;
-       changeGear();
-     }
-   }
-   else if (!stopped && !coast && (millis() - lastUpdate > coastDelay)) {
-     stopped = false;
-     coast = true;
-     reverse = false;
-     rpm1 = 0;
-     if (gear != 0) {
-       gear--; 
-       up_shift = false;
-       changeGear();
-     }
-   }
-   else if (!reverse && readRpm >= 10 && rpm1 < lowerLimit && rpm2 < lowerLimit && rpm3 < lowerLimit && gear != 0){
-     gear--;
-     up_shift = false;
-     changeGear();
-   }
-   else if (!reverse && readRpm >= 10 && rpm1 > upperLimit && rpm2 > upperLimit && rpm3 > upperLimit && rpm4 > upperLimit && gear != 9){
-     gear++;
-     up_shift = true;
-     changeGear();
+  // if the screen needs to be updated
+  if (millis() - lastDraw > drawDelay) {
+    u8g.firstPage();
+    do {
+      draw();
+    } while(u8g.nextPage());
+    lastDraw = millis();
+  }
+  // if we think the user has stopped
+  if (!stopped && (millis() - lastUpdate > stopDelay)) {
+    stopped = true;
+    coast = false;
+    reverse = false;
+    rpm1 = 0;
+    if (gear != 0) {
+      gear = 0; 
+      up_shift = false;
+      changeGear();
+    }
+  }
+  // if we think the user is coasting
+  else if (!stopped && !coast && (millis() - lastUpdate > coastDelay)) {
+    stopped = false;
+    coast = true;
+    reverse = false;
+    rpm1 = 0;
+    if (gear != 0) {
+      gear--; 
+      up_shift = false;
+      changeGear();
+    }
+  }
+  // if the last 3 RPM readings are below the lower threshold, down-shift
+  else if (!reverse && readRpm >= 10 && rpm1 < lowerLimit && rpm2 < lowerLimit && rpm3 < lowerLimit && gear != 0){
+    gear--;
+    up_shift = false;
+    changeGear();
+  }
+  // if the last 4 RPM readings are above the upper threshold, up-shift
+  else if (!reverse && readRpm >= 10 && rpm1 > upperLimit && rpm2 > upperLimit && rpm3 > upperLimit && rpm4 > upperLimit && gear != 9){
+    gear++;
+    up_shift = true;
+    changeGear();
   }
 }
 
@@ -223,7 +250,7 @@ void changeGear() {
   readRpm = 0;
   lastShift = millis();
   frontServo.write(frontGear[gear]);
-  frontComp.write(maxAngle - frontGear[gear])
+  frontComp.write(maxAngle - frontGear[gear]);
   rearServo.write(rearGear[gear]);
   rearComp.write(maxAngle - rearGear[gear]);
 }
