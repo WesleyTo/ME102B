@@ -16,7 +16,7 @@
  Servo frontServo;
  Servo rearServo;
  const short frontServoPin = 10; // Servo signal pin
- const short rearServoPin = 11; // Servo signal pin
+ const short frontCompServoPin = 11; // Complementary servo signal pin
  static byte gear = 0;
  const byte minAngle = 14;
  const byte maxAngle = 166;
@@ -135,7 +135,7 @@ void draw(void) {
 void setup(void) {
   u8g.setColorIndex(1); // pixel on draw
   frontServo.attach(frontServoPin);
-  rearServo.attach(rearServoPin);
+  rearServo.attach(frontCompServoPin);
   frontServo.write(frontGear[gear]);
   rearServo.write(rearGear[gear]);
   attachInterrupt(0, hallHigh1, RISING);
