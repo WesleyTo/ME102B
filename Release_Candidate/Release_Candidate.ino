@@ -47,17 +47,19 @@
  Servo frontComp; // front complementary servo, 180 to 0
  Servo rearServo; // rear servo, 0 to 180
  Servo rearComp; // rear complementary servo, 180 to 0
- const short frontServoPin = 5; // Servo signal pin
- const short frontCompPin = 9;  // Complementary servo signal pin
- const short rearServoPin = 10; // Servo signal pin
- const short rearCompPin = 11; // Complementary servo signal pin
+ const short frontServoPin = 10; // Servo signal pin
+ const short frontCompPin = 11;  // Complementary servo signal pin
+ const short rearServoPin = 5; // Servo signal pin
+ const short rearCompPin = 9; // Complementary servo signal pin
  byte gear = 0; // gear number, 0 - 7 for 8 speed bike
- const byte minAngle = 0; // minimum servo angle
- const byte maxAngle = 180; // maximum servo angle
- const byte numGears = 4; // number of rear gears. It is assumed that the front gear has 2 speeds.
- const byte stepAngle = (maxAngle-minAngle)/(numGears-1);
+ const byte minAngle = 0;
+ const byte maxAngle = 180;
+ const int mid1 = 100;
+ const int mid2 = 160;
+ const byte numGears = 4;
  const byte frontGear[] = {minAngle,minAngle,minAngle,minAngle,maxAngle,maxAngle,maxAngle,maxAngle};
- const byte rearGear[] = {minAngle,minAngle+stepAngle,maxAngle-stepAngle,maxAngle,minAngle,minAngle+stepAngle,maxAngle-stepAngle,maxAngle};
+ //const byte rearGear[] = {maxAngle,maxAngle-mid2,maxAngle-mid1,minAngle,maxAngle,maxAngle-mid2,maxAngle-mid1,minAngle};
+ const byte rearGear[] = {minAngle, mid1, mid2, maxAngle,minAngle, mid1, mid2, maxAngle};
  //=================
  // Hall/RPM Variables
  //=================
@@ -84,6 +86,7 @@
  const unsigned int stopDelay = 15000; //milliseconds to wait before assuming rider is stopped
 
 void draw(void) {
+  
   if (millis() - lastDraw > drawDelay) {
     //===========
     // Tachometer
@@ -163,6 +166,7 @@ void draw(void) {
       u8g.drawStr(47, 63, output2);
     }
   }
+  
 }
 
 void setup(void) {
@@ -174,17 +178,16 @@ void setup(void) {
   frontServo.write(frontGear[gear]);
   frontComp.write(maxAngle - frontGear[gear]);
   rearServo.write(rearGear[gear]);
-  rearComp.write(maxAngle - frontGear[gear]);
+  rearComp.write(maxAngle - rearGear[gear]);
   attachInterrupt(0, hallHigh1, RISING);
   attachInterrupt(1, hallHigh2, RISING);
   digitalWrite(2, HIGH);
   digitalWrite(3, HIGH);
-  rpm1 = 0;
 }
 
 unsigned int getRpm(){
   //measures half revolutions, thus, 30000ms = 30s
-  return (unsigned int)(30000/abs(hall1-hall2)); 
+  return (unsigned int)(30000.0/(hall1-hall2)); 
 }
  
 void storeRpm() {
@@ -232,6 +235,8 @@ void loop(void) {
     }
   }
   // if the last 3 RPM readings are below the lower threshold, down-shift
+  // we use 3 RPMs instead of 4 because the slower revolutions will 
+  // take longer to complete compared to 4 fast revolutions
   else if (!reverse && readRpm >= 10 && rpm1 < lowerLimit && rpm2 < lowerLimit && rpm3 < lowerLimit && gear != 0){
     gear--;
     up_shift = false;
@@ -246,6 +251,7 @@ void loop(void) {
 }
 
 void changeGear() {
+  gear = min(gear, 7);
   alert = 4;
   readRpm = 0;
   lastShift = millis();
@@ -282,3 +288,4 @@ void hallHigh2() {
   lastSensor = 2;
   storeRpm();
 }
+
